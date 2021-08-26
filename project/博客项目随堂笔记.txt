@@ -1,0 +1,488 @@
+~~~~
+day01
+~~~~
+一 、前后端分离
+       1. 判断前后端分离标准？
+           1.1 Django中是否有使用的模板页，分离后，相当于将
+                 Django的cMTV结构中的T分离出去。
+           1.2 在视图函数中，将不会出现render函数的调用。更多
+                 的return JsonResponse。  
+       2.带来的好处
+          2.1 各司其职，发挥各自特长
+          2.2 后端可以灵活搭配各类前端（1个后端团队对应多个前端团队）
+          2.3 并行开发，提高开发效率
+       3.带来的问题，以及解决方案
+          3.1 如何解决http无状态？
+                原来是cookie和session。使用token，以适应多个不同类型的前端。
+          3.2 如何解决跨域问题？
+                使用jsonp的方式解决跨域，但是它只能处理get请求。使用跨域资源 
+                共享的方式来解决。
+         3.3  如何解决csrf问题？
+                使用token。
+二 token  -令牌
+    1 base64编码
+       为什么要做base64编码？为了使得数据能够在网络中正确传输而使用的。
+       000 000   ~    111 111   6位就够了，base64编码，6位为一组。
+    2 sha256-安全散列算法（256bit），md5算法(128bit)。
+    3 消息认证码         
+    官网：https://jwt.io/  
+  
+三、 CORS-跨域资源共享
+四、创建项目-ddblog
+五、使用flask框架组织了前端的页面，为了调试方便。但是不要
+       错误的认为flask是前端框架，与Django一样，flask是一个
+       python web的后端框架。
+       使用python3 flask_client.py run 启动服务。默认是5000端口
+六 前端与后端的交互?符合RESTful风格
+     前端向后端的url，发送ajax请求，后端响应给前端数据。
+     此时的url，与用户在地址栏输入的url不同，它是前后端程序员
+     交互的url，建议这个url的设计要符合RESTful风格。
+     用户的url:一般要求简单即可。
+     前后端交互的url:一般要能够清楚的确切的表示某一个功能。
+     
+     URI与URL有什么区别？
+     URI-统一资源标识符。    
+     URL-统一资源定位符。定位符使用位置作为标识。URL是URI的
+     一种。但是在web程序中，大多数使用位置为标识，所以从角度
+     URL与URI可以画等号。
+
+      users/id       #  某个用户  URL  URI，不能出现动词
+      对资源的动作操作，使用HTTP所定义的method来表示
+      GET、POST、PUT、DELETE 
+
+      GET  users/id  # 获取指定id指定id的用户
+      POST   users/  #新建一个用户
+      PUT   users/id    # 修改一个指定id用户  
+      DELETE   users/id    # 删除一个指定id用户 
+七、用户模块
+      1. 创建并注册应用
+          python3 manage.py startapp user
+      2. 根据模型类生成表
+          python3 manage.py makemigrations
+          python3 manage.py migrate
+       
+      3. 视图类，以前使用函数。
+          一个url是一个功能，对应一个视图处理。
+          现在使用RESTful风格的url，有多个不同的请求方法，
+          def view_func(request):
+                if  request.method=='GET':
+                    处理get请求
+                elif  request.method=='POST':
+                    处理post请求
+                elif  request.method=='PUT':
+                    处理put请求
+                elif  request.method=='DELETE':
+                    处理delete请求               
+          引入视图类， 一个RESTful风格的url对应一个视图类
+          url的不同请求方法，与视图类中的成员方法对应。
+          class  UserView:
+                   def get(request):
+                        处理get请求 
+
+                   def post(request):
+                        处理post请求 
+
+                   def put(request):
+                        处理put请求 
+
+                   def get(request):
+                        处理delete请求       
+
+      # function based view  ,FBV。   
+      path(url,views.视图函数) 
+      
+      # class based view，CBV     
+
+      # GET请求=>UserView的get方法被调用
+      # POST请求 =>UserView的post方法被调用
+      # as_view()函数中，根据该url不同的请求方法，调用相应
+      # 的类的方法。
+      # 如果请求的方法在视图类的方法中没有找到，返回的响应状态
+      # 值为405. 
+      path('v1/users', user_views.UserView.as_view()), 
+
+~~~~
+day02
+~~~~
+1. 用户登录功能
+    url怎么设计？还围绕着 "v1/users"这个url可不可以？
+    url "v1/users"  , GET?POST? PUT?DELETE? 都不合适。
+    
+    "v1/tokens" #登录就是经过验证后，创建一个新的token。
+     post 请求。
+    创建一个token应用并注册
+    python3 manage.py startapp btoken   
+2. 用户信息的显示和修改
+    2.1 用户信息的显示-无需权限，游客也能看 。
+          用户url: http://127.0.0.1:5000/用户名/info
+          模板页：about.html
+          分析该页面代码：
+          // http://127.0.0.1:5000/tedu6/info
+          var url = document.location.toString();
+          //
+          var arrUrl = url.split("//");
+          //  1. tedu6   ,地址栏中的用户名【博主】
+          var blog_username = arrUrl[1].split('/')[1];
+          // 2. 从本地存储中获取token和username 。【登录用户】
+         token = window.localStorage.getItem('dnblog_token');
+         username = window.localStorage.getItem('dnblog_user');
+          // 3. 向后端8000服务发送ajax请求。请求方式：get
+                  请求的url: http://127.0.0.1:8000/v1/users/"+ blog_username
+                  要求响应的数据：
+                  {‘code’:200,‘username’:’xiaoming’,
+                    ‘data’:{‘nickname’:’abc’, ’sign’:’hellow’, 
+                           ‘avatar’: ’abc.jpg’, ‘info’: ‘hahahahah’}} 
+          // 4 根据url，添加视图类的方法  
+
+          新的小功能: 根据查询字符串的名称，动态的获取相应的数据？
+          // 错误的字段名要忽略，敏感信息要忽略 ！
+          http://127.0.0.1:8000/v1/users/aid2103?sign=1&info=1
+
+          用到"反射"。获取对象的元数据。集成开发环境的智能提示是反射应用的
+          典型案例 。
+          1. hasattr(object,fieldname) # 判断在对象object中，是否有fieldname属性
+          2. getatrr(object,fieldname)#获取object对象中属性为fieldname的值。
+          3. 获取查询字符串的名称  request.GET.keys(),遍历可以获取到每一个key  。
+
+    2.2 用户信息的修改-需要权限，登录用户修改自己的信息。
+          用户url:  http://127.0.0.1:5000/用户名/change_info
+          页面： change_info.html 
+          代码分析：
+          获取的用户名不是从地址栏中获取的，而是从本地存储中获取的，换句话说，
+          获取的是登录用户的用户名。所以，被修改的是登录用户的信息。
+          2.2.1 读取了登录用户的信息，并显示
+          2.2.2 当用户点击上传按钮时，调用函数是upload，分析该函数代码：
+          前端向后端发送的url:
+          var url = 'http://127.0.0.1:8000/v1/users/' + username + '/avatar'  
+          请求方式是"post"?  违背了RESTful的设计了。【思想方面的】
+          2.2.3 后端代码编写，用户头像上传的视图函数
+          2.2.4 先写一个登录认证的装饰器
+~~~~
+day03
+~~~~
+ 1. 用户信息的修改。
+     当在页面点击保存按钮时，调用js函数changeInfo().
+     // 1.从本地存储中获取登录用户名和token。
+     var token = window.localStorage.getItem('dnblog_token');
+     var username = window.localStorage.getItem('dnblog_user');   
+     // 2. 获取页面中用户输入的信息，封装为json对象
+     var nickname = $('.nickname').val();
+     var sign = $('.sign').val();
+     var info = $('.info').val();
+     var post_data = {'nickname':nickname, 'sign':sign, 'info':info}; 
+     // 3. 向后端发送ajax请求
+     $.ajax({
+         // 请求方式
+        type:"put",
+        url:"http://127.0.0.1:8000/v1/users/" + username,
+        ......
+     }）    
+     // 4 增加 视图的类put方法
+     注意，通过装饰器method_decorator可以将函数装饰器转换为对方法的修饰
+
+      python 可以为对象动态增加属性，例如：在登录认证中，为request
+      对象动态的增加了myuser这个属性，值就是我们查询得到的登录用户
+      对象user。
+2. 短信验证功能 【容联云】
+    1. 注册后，登录
+    2. 进入管理后台，记录开发者信息
+        ACCOUNT SID：8a216da87380115d017389546bb802f5   
+        AUTH TOKEN： 12444d5592d247b2af0e5cc10bf666a0              
+        BASE URL：        https://app.cloopen.com:8883      
+        AppID(默认)：    8a216da87380115d017389546c9e02fb 
+        什么是鉴权IP？
+        如果设置了鉴权IP，意味着只能使用指定IP发送短信验证请求。有效提高
+        账户安全性。 
+    3.  免费测试流程：注册 >> 绑定测试号 >> 开发测试     
+                         
+         短信业务免费开发测试
+         1.注册
+             我们提供免费开发测试，【免费开发测试前，请先 注册 成为平台用户】。
+         2.绑定测试号  
+         3.开发测试
+            开发测试过程请参考 短信业务接口 
+            业务流程很简单：
+            向容联云服务器发送https请求，并接收响应。根据响应状态码判断是否
+            重发。正确状态码是:000000。
+            接下来，在编码时，需要的请求的url、请求头、请求体。
+            3.1 业务url
+                  https://app.cloopen.com:8883/2013-12-26/Accounts/
+                  abcdefghijklmnopqrstuvwxyz012345/SMS/TemplateSMS
+                  ?sig=C1F20E7A9733CE94F680C70A1DBABCD 
+                  其中sig的值需要计算。
+                  使用MD5加密（账户Id + 账户授权令牌 + 时间戳）
+            3.2 请求头
+                  标准的包头字段
+                  Authorization:计算值
+                  使用Base64编码（账户Id + 冒号 + 时间戳） 
+            3.3 请求体 
+                  to
+                  appId
+                  templateId
+                  datas
+            3.4 调用requests.post(url,heads,data)发送请求，并接收响应。
+                  000000 
+3. 将短信验证功能集成到博客项目中
+    3.1 前端页面，点击"免费获取验证码"按钮时，向后端发送ajax请求。
+          发送的数据是手机号，请求方式是post。            
+    3.2 在sms_view视图函数中，生成了验证码；但是在"创建并登录"按钮 
+          对应的视图方法中使用。需要存储验证码。存在哪儿？使用redis是
+           一个最佳选择，key可以设置有效期。
+    3.3 在项目中如何使用redis？
+          1. python+redis
+              import redis
+              r= redis.Redis(passord='123456')
+              r.XXX
+              优点：提供的方法比较丰富，redis客户端有什么命令，就有相应的
+                         方法。
+              缺点：自己通过编码实现redis数据库的连接。本身并没有序列化功能。
+          2. django+redis
+              优点:可以通过配置文件连接redis。有序列化功能。
+              缺点:没有丰富的基本的方法 。
+              cache.set/get/delete
+~~~~
+day04
+~~~~
+一、Celery使用
+案例1：没有返回值
+案例2：有参数和返回值
+基本步骤：
+1. 创建Celery对象，并初始化
+2. 编写任务函数
+3. 启动工作者进程（一般是多个）
+4. 编写生产者代码，推送任务   
+案例3：将celery框架集成到Django项目中
+任务函数的编写在应用下 ，每个不同的应用都可以有自己的任务函数的。
+注意的问题：在生产环境下 ，配置文件中settings.DEBUG的值为True，会产生内存泄漏；
+所以，一定要设置为False，避免内存泄漏。
+什么是内存泄漏？
+类似于Java、Python、c#、Go这些拥有自动垃圾回收机制的语言一般不会有内存泄漏的。
+没有垃圾自动回收机制的，例如c、c++，编码不当时，可能产生内存泄漏。
+
+c:  malloc,c++:new 是在堆中开辟内存空间，使用完，需要释放free delete。
+但是如果程序员忘记释放或没有正确释放，就会造成内存泄漏。
+
+案例4：将celery应用到博客项目中，把短信验证码的发送由同步修改异步。
+1. 在和 settings同一目录下，创建celery文件。
+2. 在user应用添加tasks文件，编写任务函数【调用容联云类发送短信验证请求】
+3. 修改user应用下 的views文件中的短信验证视图函数，把同步修改为异步
+4. 启动工作者进程
+5. 在页面中点击发送短信验证码，查看执行效果。    
+----
+~~~~
+day06
+~~~~
+一、 文章模块
+     1. 创建一个文章模块，topic应用，并注册
+     2. 添加文章的模型类 
+     3. 发表博客
+         用户url:  127.0.0.1:5000/aid2103/topic/release 
+         页面：release.html
+         分析页面代码
+         // 1 从本地存储中获取登录用户名和token
+         token = window.localStorage.getItem('dnblog_token');
+         username = window.localStorage.getItem('dnblog_user');
+         // 2 向后端发送get 请求，请求的url：
+         url:"http://127.0.0.1:8000/v1/users/"+ username
+         // 3 点击“提交”按钮时，消息处理函数
+          $('#button').on('click', function(){
+               // 带样式的内容
+               var content = editor.txt.html()；
+               // 不带样式的内容，作用是什么？防止在截断时，对格式标签截断
+               var content_text = editor.txt.text()； 
+               // 向后端发送ajax异步请求，请求的方式是post，请求的url:  
+               url:"http://127.0.0.1:8000/v1/topics/" + username
+               // 成功收到后端的响应后，页面重定向到该登录用户的博客列表。
+          }          
+          <textarea></textarea> ：多行文本
+          wangEditor:开源免费的富文本编辑器，带格式，会对用户输入做转义，
+          防御xss攻击。
+     4. 文章列表模块
+         用户url：http://127.0.0.1:5000/aid2103/topics
+         页面：list.html
+         页面代码分析:
+         // 1 从浏览器的本地存储中获取登录的用户名和token
+         token = window.localStorage.getItem('dnblog_token');
+         username = window.localStorage.getItem('dnblog_user');  
+         // 2
+         后端处理文章列表的难点：
+         增加了权限和分类
+         1.权限： 从地址栏获取文章作者，从token中解析访问者
+                       对比访问者是否是作者本人。
+                       作者本人访问，不做权限过滤
+                       他人访问，权限过滤  limit='public'。
+         2.分类：从查询字符串中读取
+                       分类不为空，分类的过滤 category=category
+                       分类为空，不做类别过滤
+         权限+分类 = 四个不同的分类条件。
+         返回Json格式的数据
+         res ={'code':200,'data'={}}  
+     5. 文章详情页
+         难点是返回的数据
+         1. 文章本身的数据
+
+~~~~
+day07
+~~~~
+         2. 上一篇/下一篇的数据 
+             也要考虑权限问题
+         3. 评论（添加评论模块）
+1. 创建message应用，并注册。
+2. 分析文章详情页中的"发布"按钮的代码
+     // 2.1 获取评论内容，并封装为json格式 
+     var content = editor.txt.html();
+     var post_data = {'content': content}    
+     // 2.2 向后端发送ajax请求，请求的方式是post，请求的url:
+    url:"http://127.0.0.1:8000/v1/messages/" + t_id ,   
+3. 缓存(性能的优化)
+    博客列表页可以使用缓存
+    方案1：直接使用django给定的装饰器
+    
+     为什么需要6份缓存   【17:25回来】
+     权限 （前半部分）    2种
+     topic_cache_self   【public+private】
+     topic_cache            [public] 
+     分类 【查询字符串】    （后半部分）  3种
+     没有分类  ''  
+     有分类     '?category=tec'
+                     '?category=no-tec'
+~~~~
+day08
+~~~~
+1.当发表新的文章后，如果缓存有数据，且在有效期内。
+   这时在列表页面中是看不到新发表的文章的。新的文章数据是
+   保存在mysql中，这时mysql中的数据和redis中的数据不一致！
+   所以，在发表文章后，需要清除缓存。
+   
+   topic_cache_self_    /v1/topics/aid2103  ?category=no-tec   
+   topic_cache_           /v1/topics/aid2103   ?category=tec
+ 
+                                   /v1/topics/aid2103
+                                    	
+  
+   前缀 ： topic_cache_self_   、   topic_cache_ 
+   中间：  /v1/topics/aid2103
+   后缀：   '' , '?category=no-tec','?category=tec'
+                                 
+   执行的结果：
+  ['topic_cache_self_/v1/topics/aid2103', 
+   'topic_cache_self_/v1/topics/aid2103?category=tec',
+   'topic_cache_self_/v1/topics/aid2103?category=no-tec',
+   'topic_cache_/v1/topics/aid2103', 
+   'topic_cache_/v1/topics/aid2103?category=tec',
+   'topic_cache_/v1/topics/aid2103?category=no-tec'
+  ]
+2. 第三方支付功能（支付宝为例）
+   2.0 基础信息
+         APPID：         2021000117682350
+         支付宝网关:    https://openapi.alipaydev.com/gateway.do
+
+         买家账号:  dsbpfw6123@sandbox.com
+         登录密码:  111111
+         支付密码:  111111 
+
+
+   2.1 RSA2
+         RSA是一种非对称加密算法，2表示它的版本。它的用途有两个：
+         1.做加解密，为了信息保密，不被窃取。
+            公钥加密，私有解密
+         2.做签名/验签，身份认证，防抵赖。【在支付宝的使用】
+            私钥签名，公钥验签。   
+         非对称加密有一对秘钥(公钥+私钥)。所以，私钥需要妥善保存。
+         为了确保双方所发信息都不能抵赖，需要和支付宝交换公钥。
+ 
+  2.2 使用openssl工具生成自己的公私钥对。
+                 
+  2.3 支付流程
+        1. 当用户点击"购买"按钮时，向Django后端发送一个请求，收到请求后，
+            我们返回一个pay_url,引导用户到支付宝服务器。
+        2.  第2.3.4.5步骤，是用户与支付宝之间的交互，我们不用参与。
+        3. 第6步，支付过程完成后，引导用户回到商家页面。
+        4. 获取支付结果，分两种不同的方式
+            第7步，表示被动的接收支付宝发送的请求，获取支付结果。通常情况下
+            这是一个单独的服务器（有静态IP），拿到支付结果，一般会修改数据库
+            中订单状态。将未支付状态修改为支付成功或支付失败。
+            第8，,9步骤 表示主动的向支付宝服务器发请求，获取查询支付结果。 
+  2.4 具体实现
+        下载了我的代码，需要修改的是：
+        1. 配置文件中的appid
+        2. static/key_file/3个秘钥文件替换  
+    
+   排错： 1 有钓鱼风险的，退出你真正的支付宝账号的登录。然后再测试！
+               2 如果没有跳转到支付页面，检查参数，例如:appid.
+               3 如果出现 invalid signature，代表签名错误。你的秘钥文件有问题
+                  或者创建AliPay对象时，签名算法的参数错误。
+~~~~~~
+项目总结  
+~~~~~~
+项目中的知识点：
+1. cors-跨域资源共享
+2. 使用token保存用户的登录状态，解决http无状态
+3. 第三方短信验证【容联云】
+4. 使用celery实现异步的短信请求的发送
+5. 使用缓存实现博客列表页
+6. 登录装饰器，缓存装饰器
+7. 第三方支付功能(以支付宝为例)
+
+
+~~~
+简历
+~~~
+1. 基本信息 【体现优势，避免劣势】
+    国家级别的证书、相关专业。
+2. 求职意向
+3.基本技能
+   .....
+4.工作经历 (2~3个项目)
+   项目描述，简短明了(一两句话)，项目模块。你负责的模块的
+   开发流程，在描述开发流程时，要有知识点的描述，知识点的 
+   描述要有专业词汇。【针对知识点要准备问题以及问题的答案】
+5.教育经历
+6.自我评价
+   学习能力、抗压能力、团队协作能力、沟通表达能力
+   
+
+
+   
+ 
+   
+
+
+
+
+
+
+
+
+
+
+
+
+
+             
+         
+            
+     
+          
+          
+               
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+         
+                
+           
+
+           
