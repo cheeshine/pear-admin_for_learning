@@ -11,7 +11,7 @@ from applications.common.utils.validate import xss_escape
 from applications.extensions import db
 from applications.models import Role
 from applications.models import User, AdminLog
-from applications.schemas import UserSchema
+from applications.schemas import UserOutSchema
 
 admin_user = Blueprint('adminUser', __name__, url_prefix='/admin/user')
 
@@ -42,9 +42,9 @@ def data():
     # orm查询
     # 使用分页获取data需要.items
     user = User.query.filter(mf.get_filter(model=User)).layui_paginate()
-    count = User.query.filter(mf.get_filter(model=User)).count()
+    count = user.total
     # 返回api
-    return table_api(data=model_to_dicts(schema=UserSchema, data=user.items), count=count)
+    return table_api(data=model_to_dicts(schema=UserOutSchema, data=user.items), count=count)
 
 
 # 用户增加
@@ -85,12 +85,8 @@ def save():
 @authorize("admin:user:remove", log=True)
 def delete(id):
     user = User.query.filter_by(id=id).first()
-    roles_id = []
-    for role in user.role:
-        roles_id.append(role.id)
-    roles = Role.query.filter(Role.id.in_(roles_id)).all()
-    for r in roles:
-        user.role.remove(r)
+    user.role = []
+    
     res = User.query.filter_by(id=id).delete()
     db.session.commit()
     if not res:
@@ -123,15 +119,10 @@ def update():
     role_ids = a.split(',')
     User.query.filter_by(id=id).update({'username': username, 'realname': real_name, 'dept_id': dept_id})
     u = User.query.filter_by(id=id).first()
-    roles_id = []
-    for role in u.role:
-        roles_id.append(role.id)
-    roles = Role.query.filter(Role.id.in_(roles_id)).all()
-    for r in roles:
-        u.role.remove(r)
+
     roles = Role.query.filter(Role.id.in_(role_ids)).all()
-    for r in roles:
-        u.role.append(r)
+    u.role = roles
+
     db.session.commit()
     return success_api(msg="更新成功")
 
@@ -141,7 +132,7 @@ def update():
 @login_required
 def center():
     user_info = current_user
-    user_logs = AdminLog.query.filter_by(url='/admin/login').filter_by(uid=current_user.id).order_by(
+    user_logs = AdminLog.query.filter_by(url='/passport/login').filter_by(uid=current_user.id).order_by(
         desc(AdminLog.create_time)).limit(10)
     return render_template('admin/user/center.html', user_info=user_info, user_logs=user_logs)
 
@@ -237,12 +228,8 @@ def batch_remove():
     ids = request.form.getlist('ids[]')
     for id in ids:
         user = User.query.filter_by(id=id).first()
-        roles_id = []
-        for role in user.role:
-            roles_id.append(role.id)
-        roles = Role.query.filter(Role.id.in_(roles_id)).all()
-        for r in roles:
-            user.role.remove(r)
+        user.role = []
+        
         res = User.query.filter_by(id=id).delete()
         db.session.commit()
     return success_api(msg="批量删除成功")

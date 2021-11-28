@@ -7,7 +7,7 @@ from applications.common.utils.rights import authorize
 from applications.common.utils.validate import xss_escape
 from applications.extensions import db
 from applications.models import Role, Power, User
-from applications.schemas import RoleSchema, PowerSchema2
+from applications.schemas import RoleOutSchema, PowerOutSchema2
 
 admin_role = Blueprint('adminRole', __name__, url_prefix='/admin/role')
 
@@ -35,9 +35,9 @@ def table():
     # orm查询
     # 使用分页获取data需要.items
     role = Role.query.filter(mf.get_filter(Role)).layui_paginate()
-    count = Role.query.filter(mf.get_filter(Role)).count()
+    count = role.total
     # 返回api
-    return table_api(data=model_to_dicts(schema=RoleSchema, data=role.items), count=count)
+    return table_api(data=model_to_dicts(schema=RoleOutSchema, data=role.items), count=count)
 
 
 # 角色增加
@@ -86,7 +86,7 @@ def get_role_power(id):
     for cp in check_powers:
         check_powers_list.append(cp.id)
     powers = Power.query.all()
-    power_schema = PowerSchema2(many=True)  # 用已继承ma.ModelSchema类的自定制类生成序列化类
+    power_schema = PowerOutSchema2(many=True)  # 用已继承ma.ModelSchema类的自定制类生成序列化类
     output = power_schema.dump(powers)  # 生成可序列化对象
     for i in output:
         if int(i.get("powerId")) in check_powers_list:
@@ -109,17 +109,10 @@ def save_role_power():
     power_list = power_ids.split(',')
     role_id = req_form.get("roleId")
     role = Role.query.filter_by(id=role_id).first()
-    power_id_list = []
-    for p in role.power:
-        power_id_list.append(p.id)
-        # print(p.id)
-    # print(power_id_list)
-    powers = Power.query.filter(Power.id.in_(power_id_list)).all()
-    for p in powers:
-        role.power.remove(p)
+    
     powers = Power.query.filter(Power.id.in_(power_list)).all()
-    for p in powers:
-        role.power.append(p)
+    role.power = powers
+    
     db.session.commit()
     return success_api(msg="授权成功")
 
@@ -183,20 +176,10 @@ def dis_enable():
 @authorize("admin:role:remove", log=True)
 def remove(id):
     role = Role.query.filter_by(id=id).first()
-    # 删除该角色的权限
-    power_id_list = []
-    for p in role.power:
-        power_id_list.append(p.id)
-
-    powers = Power.query.filter(Power.id.in_(power_id_list)).all()
-    for p in powers:
-        role.power.remove(p)
-    user_id_list = []
-    for u in role.user:
-        user_id_list.append(u.id)
-    users = User.query.filter(User.id.in_(user_id_list)).all()
-    for u in users:
-        role.user.remove(u)
+    # 删除该角色的权限和用户
+    role.power = []
+    role.user = []
+    
     r = Role.query.filter_by(id=id).delete()
     db.session.commit()
     if not r:
@@ -212,20 +195,10 @@ def batch_remove():
     ids = request.form.getlist('ids[]')
     for id in ids:
         role = Role.query.filter_by(id=id).first()
-        # 删除该角色的权限
-        power_id_list = []
-        for p in role.power:
-            power_id_list.append(p.id)
-
-        powers = Power.query.filter(Power.id.in_(power_id_list)).all()
-        for p in powers:
-            role.power.remove(p)
-        user_id_list = []
-        for u in role.user:
-            user_id_list.append(u.id)
-        users = User.query.filter(User.id.in_(user_id_list)).all()
-        for u in users:
-            role.user.remove(u)
+        # 删除该角色的权限和用户
+        role.power = []
+        role.user = []
+        
         r = Role.query.filter_by(id=id).delete()
         db.session.commit()
     return success_api(msg="批量删除成功")

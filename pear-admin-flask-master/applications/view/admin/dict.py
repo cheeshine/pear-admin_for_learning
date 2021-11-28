@@ -7,7 +7,7 @@ from applications.common.utils.rights import authorize
 from applications.common.utils.validate import xss_escape
 from applications.extensions import db
 from applications.models import DictType, DictData
-from applications.schemas import DictTypeSchema, DictDataSchema
+from applications.schemas import DictTypeOutSchema, DictDataOutSchema
 
 admin_dict = Blueprint('adminDict', __name__, url_prefix='/admin/dict')
 
@@ -31,8 +31,8 @@ def dict_type_data():
     # orm查询
     # 使用分页获取data需要.items
     dict_all = DictType.query.filter(mf.get_filter(DictType)).layui_paginate()
-    count = DictType.query.filter(mf.get_filter(DictType)).count()
-    data = curd.model_to_dicts(schema=DictTypeSchema, data=dict_all.items)
+    count = dict_all.total
+    data = curd.model_to_dicts(schema=DictTypeOutSchema, data=dict_all.items)
     return table_api(data=data, count=count)
 
 
@@ -72,7 +72,18 @@ def dict_type_edit():
 @authorize("admin:dict:edit", log=True)
 def dict_type_update():
     req_json = request.json
-    dict_curd.update_dict_type(req_json)
+    id = xss_escape(req_json.get("id"))
+    description = xss_escape(req_json.get("description"))
+    enable = xss_escape(req_json.get("enable"))
+    type_code = xss_escape(req_json.get("typeCode"))
+    type_name = xss_escape(req_json.get("typeName"))
+    DictType.query.filter_by(id=id).update({
+        "description": description,
+        "enable": enable,
+        "type_code": type_code,
+        "type_name": type_name
+    })
+    db.session.commit()
     return success_api(msg="更新成功")
 
 
@@ -117,8 +128,8 @@ def dict_type_delete(_id):
 def dict_code_data():
     type_code = xss_escape(request.args.get('typeCode', type=str))
     dict_data = DictData.query.filter_by(type_code=type_code).layui_paginate()
-    count = DictType.query.count()
-    data = curd.model_to_dicts(schema=DictDataSchema, data=dict_data.items)
+    count = dict_data.total
+    data = curd.model_to_dicts(schema=DictDataOutSchema, data=dict_data.items)
     return table_api(data=data, count=count)
 
 
@@ -131,7 +142,7 @@ def dict_data_add():
 
 
 # 增加字典数据
-@admin_dict.get('/dictData/save')
+@admin_dict.post('/dictData/save')
 @authorize("admin:dict:add", log=True)
 def dict_data_save():
     req_json = request.json

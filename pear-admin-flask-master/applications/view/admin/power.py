@@ -5,8 +5,8 @@ from applications.common.utils.http import success_api, fail_api
 from applications.common.utils.rights import authorize
 from applications.common.utils.validate import xss_escape
 from applications.extensions import db
-from applications.models import Power, Role
-from applications.schemas import PowerSchema2
+from applications.models import Power
+from applications.schemas import PowerOutSchema2
 
 admin_power = Blueprint('adminPower', __name__, url_prefix='/admin/power')
 
@@ -17,12 +17,12 @@ def index():
     return render_template('admin/power/main.html')
 
 
-@admin_power.get('/data')
+@admin_power.post('/data')
 @authorize("admin:power:main", log=True)
 def data():
     power = Power.query.all()
     res = {
-        "data": curd.model_to_dicts(schema=PowerSchema2, data=power)
+        "data": curd.model_to_dicts(schema=PowerOutSchema2, data=power)
     }
     return jsonify(res)
 
@@ -37,7 +37,7 @@ def add():
 @authorize("admin:power:main", log=True)
 def select_parent():
     power = Power.query.all()
-    res = curd.model_to_dicts(schema=PowerSchema2, data=power)
+    res = curd.model_to_dicts(schema=PowerOutSchema2, data=power)
     res.append({"powerId": 0, "powerName": "顶级权限", "parentId": -1})
     res = {
         "status": {"code": 200, "message": "默认"},
@@ -118,7 +118,7 @@ def update():
 def enable():
     _id = request.json.get('powerId')
     if id:
-        res = curd.enable_status(Power,_id)
+        res = curd.enable_status(Power, _id)
         if not res:
             return fail_api(msg="出错啦")
         return success_api(msg="启用成功")
@@ -131,7 +131,7 @@ def enable():
 def dis_enable():
     _id = request.json.get('powerId')
     if id:
-        res = curd.disable_status(Power,_id)
+        res = curd.disable_status(Power, _id)
         if not res:
             return fail_api(msg="出错啦")
         return success_api(msg="禁用成功")
@@ -143,13 +143,8 @@ def dis_enable():
 @authorize("admin:power:remove", log=True)
 def remove(id):
     power = Power.query.filter_by(id=id).first()
-    role_id_list = []
-    roles = power.role
-    for role in roles:
-        role_id_list.append(role.id)
-    roles = Role.query.filter(Role.id.in_(role_id_list)).all()
-    for p in roles:
-        power.role.remove(p)
+    power.role = []
+
     r = Power.query.filter_by(id=id).delete()
     db.session.commit()
     if r:
@@ -165,13 +160,8 @@ def batch_remove():
     ids = request.form.getlist('ids[]')
     for id in ids:
         power = Power.query.filter_by(id=id).first()
-        role_id_list = []
-        roles = power.role
-        for role in roles:
-            role_id_list.append(role.id)
-        roles = Role.query.filter(Role.id.in_(role_id_list)).all()
-        for p in roles:
-            power.role.remove(p)
+        power.role = []
+
         r = Power.query.filter_by(id=id).delete()
         db.session.commit()
     return success_api(msg="批量删除成功")
